@@ -143,6 +143,45 @@ namespace NServiceBus.RavenDB.Tests.SubscriptionStorage
             }
         }
 
+        [Test]
+        public async Task Should_allow_for_null_machine_name()
+        {
+            var subscriptionsV3 = new SubscriptionV3
+            {
+                Id = docId,
+                MessageType = msgType,
+                Clients = new List<LegacyAddress>
+                {
+                    new LegacyAddress { Queue = "QueueA", Machine = null},
+                    new LegacyAddress { Queue = "QueueB", Machine = null},
+                }
+            };
+
+            await StoreAsType(subscriptionsV3.Id, typeof(Subscription), subscriptionsV3);
+
+            await persister.Subscribe(new Subscriber("QueueB", "QueueB"), msgType, new ContextBag());
+
+            using (store.DatabaseCommands.DisableAllCaching())
+            {
+                using (var session = store.OpenAsyncSession())
+                {
+                    var resultDoc = await session.LoadAsync<Subscription>(docId);
+
+                    Assert.AreEqual(docId, resultDoc.Id);
+                    Assert.AreEqual(msgType, resultDoc.MessageType);
+
+                    Assert.AreEqual(2, resultDoc.Subscribers.Count);
+                    Assert.AreEqual(2, resultDoc.LegacySubscriptions.Count);
+
+                    Assert.IsTrue(resultDoc.Subscribers.Any(s => s.TransportAddress == "QueueA" && s.Endpoint == null)); // null because converted
+                    Assert.IsTrue(resultDoc.Subscribers.Any(s => s.TransportAddress == "QueueB" && s.Endpoint == "QueueB")); // converted but overwritten
+
+                    Assert.IsTrue(resultDoc.LegacySubscriptions.Any(s => s.Queue == "QueueA" && s.Machine == null));
+                    Assert.IsTrue(resultDoc.LegacySubscriptions.Any(s => s.Queue == "QueueB" && s.Machine == null));
+                }
+            }
+        }
+
         class SubscriptionV3
         {
             public string Id { get; set; }
