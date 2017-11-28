@@ -29,7 +29,7 @@ namespace NServiceBus.Persistence.RavenDB
         {
             var atIndex = client.TransportAddress?.IndexOf("@", StringComparison.InvariantCulture);
 
-            if (atIndex.HasValue)
+            if (atIndex > 0)
             {
                 return new LegacyAddress
                 {
